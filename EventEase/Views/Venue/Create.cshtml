@@ -1,0 +1,47 @@
+﻿@model EventEase.Models.Venue
+
+@{
+    ViewData["Title"] = "Create Venue";
+}
+
+<h2>Create Venue</h2>
+
+<form asp-action="Create" enctype="multipart/form-data">
+    <div class="form-group mb-3">
+        <label asp-for="VenueName" class="control-label"></label>
+        <input asp-for="VenueName" class="form-control" />
+        <span asp-validation-for="VenueName" class="text-danger"></span>
+    </div>
+    <div class="form-group mb-3">
+        <label asp-for="Location" class="control-label"></label>
+        <input asp-for="Location" class="form-control" />
+        <span asp-validation-for="Location" class="text-danger"></span>
+    </div>
+    <div class="form-group mb-3">
+        <label asp-for="Capacity" class="control-label"></label>
+        <input asp-for="Capacity" class="form-control" type="number" />
+        <span asp-validation-for="Capacity" class="text-danger"></span>
+    </div>
+    <div class="form-group mb-3">
+        <label asp-for="Availability" class="control-label"></label>
+        <select asp-for="Availability" class="form-control">
+            <option value="true">Available</option>
+            <option value="false">Not Available</option>
+        </select>
+        <span asp-validation-for="Availability" class="text-danger"></span>
+    </div>
+    <div class="form-group mb-3">
+        <label class="control-label">Venue Image</label>
+        <input type="file" name="imageFile" class="form-control" accept="image/*" />
+    </div>
+    <div class="form-group mb-3">
+        <input type="submit" value="Create" class="btn btn-success crud-button create" />
+        <a asp-action="Index" class="btn btn-secondary crud-button">Back to List</a>
+    </div>
+</form>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

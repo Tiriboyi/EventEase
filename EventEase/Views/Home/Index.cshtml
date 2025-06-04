@@ -1,0 +1,13 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="home-hero">
+    <h1>Welcome to EventEase</h1>
+    <p>This is your Venue Booking System. Use the navigation bar to manage venues, events, and bookings.</p>
+    <div class="home-buttons">
+        <a asp-controller="Venue" asp-action="Index" class="btn-explore btn-venues">Explore Venues</a>
+        <a asp-controller="Event" asp-action="Index" class="btn-explore btn-events">Explore Events</a>
+        <a asp-controller="Booking" asp-action="Index" class="btn-explore btn-bookings">Explore Bookings</a>
+    </div>
+</div>
