@@ -154,9 +154,7 @@ namespace EventEase.Controllers
             }
 
             // Populate filter options
-            searchModel.EventTypes = await _context.EventTypes.ToListAsync();
-
-            // Get search results
+            searchModel.EventTypes = await _context.EventTypes.ToListAsync();            // Get search results
             if (!string.IsNullOrEmpty(searchModel.SearchTerm) || 
                 searchModel.EventTypeId.HasValue || 
                 searchModel.StartDate.HasValue || 
@@ -166,7 +164,7 @@ namespace EventEase.Controllers
                 searchModel.MaxCapacity.HasValue ||
                 !string.IsNullOrEmpty(searchModel.Location))
             {
-                searchModel.SearchResults = await _searchService.SearchEventsAsync(searchModel);
+                searchModel.SearchResults = await _searchService.SearchAsync(searchModel);
             }
 
             return View(searchModel);

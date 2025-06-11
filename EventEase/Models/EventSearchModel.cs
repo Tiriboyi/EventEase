@@ -22,9 +22,7 @@ namespace EventEase.Models
 
         public int? MaxCapacity { get; set; }
 
-        public string? Location { get; set; }
-
-        public List<Event> SearchResults { get; set; } = new();
+        public string? Location { get; set; }        public SearchResult SearchResults { get; set; } = new();
         public List<EventType> EventTypes { get; set; } = new();
     }
 }

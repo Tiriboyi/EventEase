@@ -18,80 +18,115 @@ namespace EventEase.Services
             _cache = cache;
         }
 
-        public async Task<List<Event>> SearchEventsAsync(EventSearchModel searchModel)
+        public async Task<SearchResult> SearchAsync(EventSearchModel searchModel)
         {
+            var searchResult = new SearchResult { SearchTerm = searchModel.SearchTerm };
             var cacheKey = $"search_{searchModel.SearchTerm}_{searchModel.EventTypeId}_{searchModel.StartDate}_{searchModel.EndDate}_{searchModel.VenueAvailability}_{searchModel.MinCapacity}_{searchModel.MaxCapacity}_{searchModel.Location}";
 
-            if (_cache.TryGetValue<List<Event>>(cacheKey, out var cachedResults))
+            if (_cache.TryGetValue<SearchResult>(cacheKey, out var cachedResults))
             {
                 return cachedResults;
             }
 
-            var query = _context.Events
+            // Search Events
+            var eventsQuery = _context.Events
                 .Include(e => e.EventType)
                 .Include(e => e.Venue)
                 .AsQueryable();
 
-            // Apply text search filter
+            // Apply text search filter for events
             if (!string.IsNullOrWhiteSpace(searchModel.SearchTerm))
             {
                 var searchTerm = searchModel.SearchTerm.ToLower();
-                query = query.Where(e => 
-                    EF.Functions.Like(e.EventName.ToLower(), $"%{searchTerm}%") || 
-                    (e.Description != null && EF.Functions.Like(e.Description.ToLower(), $"%{searchTerm}%")) ||
-                    EF.Functions.Like(e.EventType.TypeName.ToLower(), $"%{searchTerm}%") ||
-                    EF.Functions.Like(e.Venue.VenueName.ToLower(), $"%{searchTerm}%") ||
-                    EF.Functions.Like(e.Venue.Location.ToLower(), $"%{searchTerm}%"));
+                // Use CONTAINS for full-text search on EventName and Description
+                eventsQuery = eventsQuery.Where(e => 
+                    EF.Functions.Contains(e.EventName, searchModel.SearchTerm) ||
+                    EF.Functions.Contains(e.Description, searchModel.SearchTerm) ||
+                    EF.Functions.Contains(e.Venue.VenueName, searchModel.SearchTerm) ||
+                    EF.Functions.Contains(e.Venue.Location, searchModel.SearchTerm));
             }
 
-            // Apply event type filter
+            // Apply other event filters
             if (searchModel.EventTypeId.HasValue)
             {
-                query = query.Where(e => e.EventTypeId == searchModel.EventTypeId.Value);
+                eventsQuery = eventsQuery.Where(e => e.EventTypeId == searchModel.EventTypeId.Value);
             }
 
-            // Apply date range filters
             if (searchModel.StartDate.HasValue)
             {
-                query = query.Where(e => e.EventDate.Date >= searchModel.StartDate.Value.Date);
+                eventsQuery = eventsQuery.Where(e => e.EventDate.Date >= searchModel.StartDate.Value.Date);
             }
 
             if (searchModel.EndDate.HasValue)
             {
-                query = query.Where(e => e.EventDate.Date <= searchModel.EndDate.Value.Date);
+                eventsQuery = eventsQuery.Where(e => e.EventDate.Date <= searchModel.EndDate.Value.Date);
             }
 
             // Apply venue filters
             if (searchModel.VenueAvailability.HasValue)
             {
-                query = query.Where(e => e.Venue.Availability == searchModel.VenueAvailability.Value);
+                eventsQuery = eventsQuery.Where(e => e.Venue.Availability == searchModel.VenueAvailability.Value);
             }
 
             if (searchModel.MinCapacity.HasValue)
             {
-                query = query.Where(e => e.Venue.Capacity >= searchModel.MinCapacity.Value);
+                eventsQuery = eventsQuery.Where(e => e.Venue.Capacity >= searchModel.MinCapacity.Value);
             }
 
             if (searchModel.MaxCapacity.HasValue)
             {
-                query = query.Where(e => e.Venue.Capacity <= searchModel.MaxCapacity.Value);
+                eventsQuery = eventsQuery.Where(e => e.Venue.Capacity <= searchModel.MaxCapacity.Value);
             }
 
-            // Apply location filter
             if (!string.IsNullOrWhiteSpace(searchModel.Location))
             {
-                var location = searchModel.Location.ToLower();
-                query = query.Where(e => EF.Functions.Like(e.Venue.Location.ToLower(), $"%{location}%"));
+                eventsQuery = eventsQuery.Where(e => EF.Functions.Contains(e.Venue.Location, searchModel.Location));
             }
 
-            // Order by date descending by default
-            query = query.OrderByDescending(e => e.EventDate);
+            // Order events by date
+            eventsQuery = eventsQuery.OrderByDescending(e => e.EventDate);
+            searchResult.Events = await eventsQuery.ToListAsync();
 
-            var results = await query.ToListAsync();
-            
-            _cache.Set(cacheKey, results, TimeSpan.FromMinutes(CacheExpirationMinutes));
-            
-            return results;
+            // Search Venues
+            if (!string.IsNullOrWhiteSpace(searchModel.SearchTerm))
+            {
+                var venuesQuery = _context.Venues.AsQueryable();
+
+                // Apply full-text search to venues
+                venuesQuery = venuesQuery.Where(v => 
+                    EF.Functions.Contains(v.VenueName, searchModel.SearchTerm) ||
+                    EF.Functions.Contains(v.Location, searchModel.SearchTerm));
+
+                // Apply venue filters
+                if (searchModel.VenueAvailability.HasValue)
+                {
+                    venuesQuery = venuesQuery.Where(v => v.Availability == searchModel.VenueAvailability.Value);
+                }
+
+                if (searchModel.MinCapacity.HasValue)
+                {
+                    venuesQuery = venuesQuery.Where(v => v.Capacity >= searchModel.MinCapacity.Value);
+                }
+
+                if (searchModel.MaxCapacity.HasValue)
+                {
+                    venuesQuery = venuesQuery.Where(v => v.Capacity <= searchModel.MaxCapacity.Value);
+                }
+
+                if (!string.IsNullOrWhiteSpace(searchModel.Location))
+                {
+                    venuesQuery = venuesQuery.Where(v => EF.Functions.Contains(v.Location, searchModel.Location));
+                }
+
+                // Get venues that aren't already included in the events results
+                var eventVenueIds = searchResult.Events.Select(e => e.VenueId).ToList();
+                venuesQuery = venuesQuery.Where(v => !eventVenueIds.Contains(v.VenueId));
+
+                searchResult.Venues = await venuesQuery.ToListAsync();
+            }
+
+            _cache.Set(cacheKey, searchResult, TimeSpan.FromMinutes(CacheExpirationMinutes));
+            return searchResult;
         }
     }
 }
