@@ -38,12 +38,14 @@
         <textarea asp-for="Description" class="form-control"></textarea>
         <span asp-validation-for="Description" class="text-danger"></span>
     </div>
-    <div class="form-group mb-3">
-        <label class="control-label">Event Image</label>
+    <div class="form-group mb-3">        <label class="control-label">Event Image</label>
         <input type="file" name="imageFile" class="form-control" accept="image/*" />
+        <small class="text-muted">Optional. Leave empty to keep the current image, or no image will use the default.</small>
         @if (!string.IsNullOrEmpty(Model.ImageUrl))
         {
-            <img src="@Model.ImageUrl" alt="@Model.EventName" style="max-width: 200px; max-height: 200px;" class="mt-2" />
+            <div class="mt-2">
+                <img src="@Model.ImageUrl" alt="@Model.EventName" style="max-width: 200px; max-height: 200px;" class="mt-2 rounded" />
+            </div>
         }
     </div>
     <div class="form-group mb-3">

@@ -26,19 +26,18 @@ namespace EventEase.Controllers
             var uri = new Uri(blobUrl);
             var blobClient = _blobContainerClient.GetBlobClient(Path.GetFileName(uri.LocalPath));
 
-            // Generate SAS token valid for 1 hour
+            // Generate SAS token valid for 24 hours and starting from 1 hour ago to handle time skew
             var sasBuilder = new BlobSasBuilder
             {
                 BlobContainerName = _blobContainerClient.Name,
                 BlobName = blobClient.Name,
                 Resource = "b",
-                StartsOn = DateTimeOffset.UtcNow,
-                ExpiresOn = DateTimeOffset.UtcNow.AddHours(1)
+                StartsOn = DateTimeOffset.UtcNow.AddHours(-1),
+                ExpiresOn = DateTimeOffset.UtcNow.AddHours(24)
             };
 
             sasBuilder.SetPermissions(BlobSasPermissions.Read);
 
-            // Generate SAS token
             return blobClient.GenerateSasUri(sasBuilder).ToString();
         }        // GET: Venue
         public async Task<IActionResult> Index()

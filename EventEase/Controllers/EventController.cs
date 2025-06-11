@@ -4,6 +4,8 @@ using EventEase.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Azure.Storage.Blobs;
+using Azure.Storage.Sas;
 
 namespace EventEase.Controllers
 {
@@ -11,20 +13,46 @@ namespace EventEase.Controllers
     {
         private readonly EventEaseContext _context;
         private readonly EventSearchService _searchService;
+        private readonly BlobContainerClient _blobContainerClient;
 
-        public EventController(EventEaseContext context, EventSearchService searchService)
+        public EventController(EventEaseContext context, EventSearchService searchService, BlobContainerClient blobContainerClient)
         {
             _context = context;
             _searchService = searchService;
+            _blobContainerClient = blobContainerClient;
         }
 
-        // GET: Event
+        private async Task<string?> GenerateImageSasUrlAsync(string? blobUrl)
+        {
+            if (string.IsNullOrEmpty(blobUrl)) return "/images/istockphoto.jpg";
+
+            var uri = new Uri(blobUrl);
+            var blobClient = _blobContainerClient.GetBlobClient(Path.GetFileName(uri.LocalPath));
+
+            var sasBuilder = new BlobSasBuilder
+            {
+                BlobContainerName = _blobContainerClient.Name,
+                BlobName = blobClient.Name,
+                Resource = "b",
+                StartsOn = DateTimeOffset.UtcNow.AddHours(-1),
+                ExpiresOn = DateTimeOffset.UtcNow.AddHours(24)
+            };
+
+            sasBuilder.SetPermissions(BlobSasPermissions.Read);
+
+            return blobClient.GenerateSasUri(sasBuilder).ToString();
+        }        // GET: Event
         public async Task<IActionResult> Index()
         {
             var events = await _context.Events
                 .Include(e => e.Venue)
                 .Include(e => e.EventType)
                 .ToListAsync();
+
+            foreach (var @event in events)
+            {
+                @event.ImageUrl = await GenerateImageSasUrlAsync(@event.ImageUrl);
+            }
             return View(events);
         }
 
@@ -48,15 +76,24 @@ namespace EventEase.Controllers
             ViewData["VenueId"] = new SelectList(_context.Venues, "VenueId", "VenueName");
             ViewData["EventTypeId"] = new SelectList(_context.EventTypes, "EventTypeId", "TypeName");
             return View();
-        }
-
-        // POST: Event/Create
+        }        // POST: Event/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("EventId,EventName,EventDate,VenueId,EventTypeId,Description")] Event @event)
+        public async Task<IActionResult> Create([Bind("EventId,EventName,EventDate,VenueId,EventTypeId,Description")] Event @event, IFormFile? imageFile)
         {
             if (ModelState.IsValid)
             {
+                if (imageFile != null && imageFile.Length > 0)
+                {
+                    var fileName = Guid.NewGuid().ToString() + Path.GetExtension(imageFile.FileName);
+                    var blobClient = _blobContainerClient.GetBlobClient(fileName);
+                    using (var stream = imageFile.OpenReadStream())
+                    {
+                        await blobClient.UploadAsync(stream, overwrite: true);
+                    }
+                    @event.ImageUrl = blobClient.Uri.ToString();
+                }
+
                 _context.Add(@event);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
@@ -79,12 +116,10 @@ namespace EventEase.Controllers
             ViewData["VenueId"] = new SelectList(_context.Venues, "VenueId", "VenueName", @event.VenueId);
             ViewData["EventTypeId"] = new SelectList(_context.EventTypes, "EventTypeId", "TypeName", @event.EventTypeId);
             return View(@event);
-        }
-
-        // POST: Event/Edit/5
+        }        // POST: Event/Edit/5
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, [Bind("EventId,EventName,EventDate,VenueId,EventTypeId,Description,ImageUrl")] Event @event)
+        public async Task<IActionResult> Edit(int id, [Bind("EventId,EventName,EventDate,VenueId,EventTypeId,Description,ImageUrl")] Event @event, IFormFile? imageFile)
         {
             if (id != @event.EventId) return NotFound();
 
@@ -92,6 +127,22 @@ namespace EventEase.Controllers
             {
                 try
                 {
+                    if (imageFile != null && imageFile.Length > 0)
+                    {
+                        var fileName = Guid.NewGuid().ToString() + Path.GetExtension(imageFile.FileName);
+                        var blobClient = _blobContainerClient.GetBlobClient(fileName);
+                        using (var stream = imageFile.OpenReadStream())
+                        {
+                            await blobClient.UploadAsync(stream, overwrite: true);
+                        }
+                        @event.ImageUrl = blobClient.Uri.ToString();
+                    }
+                    else
+                    {
+                        var existingEvent = await _context.Events.AsNoTracking().FirstOrDefaultAsync(e => e.EventId == id);
+                        @event.ImageUrl = existingEvent?.ImageUrl;
+                    }
+
                     _context.Update(@event);
                     await _context.SaveChangesAsync();
                 }
