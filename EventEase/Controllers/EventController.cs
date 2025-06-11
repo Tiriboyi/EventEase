@@ -67,6 +67,9 @@ namespace EventEase.Controllers
                 .FirstOrDefaultAsync(m => m.EventId == id);
             if (@event == null) return NotFound();
 
+            // Generate SAS URL for the image
+            @event.ImageUrl = await GenerateImageSasUrlAsync(@event.ImageUrl);
+
             return View(@event);
         }
 
@@ -110,8 +113,13 @@ namespace EventEase.Controllers
 
             var @event = await _context.Events
                 .Include(e => e.Venue)
+                .Include(e => e.EventType)
                 .FirstOrDefaultAsync(m => m.EventId == id);
+            
             if (@event == null) return NotFound();
+
+            // Generate SAS URL for the image
+            @event.ImageUrl = await GenerateImageSasUrlAsync(@event.ImageUrl);
 
             ViewData["VenueId"] = new SelectList(_context.Venues, "VenueId", "VenueName", @event.VenueId);
             ViewData["EventTypeId"] = new SelectList(_context.EventTypes, "EventTypeId", "TypeName", @event.EventTypeId);

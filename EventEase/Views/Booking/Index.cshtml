@@ -7,36 +7,126 @@
 <div class="container">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Bookings</h2>
-        <a asp-action="Create" class="btn btn-primary">Create New</a>
+        <a asp-action="Create" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Create New
+        </a>
     </div>
 
-    <div class="row">
-        @foreach (var item in Model)
-        {
-            <div class="col-12 col-md-6 col-lg-4 mb-4">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h5 class="card-title">@item.Event.EventName</h5>
-                        <p class="card-text">
-                            <i class="bi bi-geo-alt-fill"></i> @item.Venue.VenueName<br>
-                            <i class="bi bi-calendar-check"></i> Booked for: @item.BookingDate.ToString("MMM dd, yyyy HH:mm")
-                        </p>
-                    </div>
-                    <div class="card-footer bg-transparent">
-                        <div class="btn-group w-100">
-                            <a asp-action="Edit" asp-route-id="@item.BookingId" class="btn btn-outline-primary">
-                                <i class="bi bi-pencil"></i> Edit
-                            </a>
-                            <a asp-action="Details" asp-route-id="@item.BookingId" class="btn btn-outline-info">
-                                <i class="bi bi-info-circle"></i> Details
-                            </a>
-                            <a asp-action="Delete" asp-route-id="@item.BookingId" class="btn btn-outline-danger">
-                                <i class="bi bi-trash"></i> Delete
-                            </a>
-                        </div>
+    <div class="card mb-4">
+        <div class="card-body">
+            <form asp-action="Index" method="get" class="row g-3">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        <label class="form-label">Search</label>
+                        <input type="text" name="searchTerm" class="form-control" placeholder="Search events, venues..." value="@ViewData["SearchTerm"]" />
                     </div>
                 </div>
-            </div>
-        }
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label class="form-label">From Date</label>
+                        <input type="date" name="fromDate" class="form-control" value="@ViewData["FromDate"]" />
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        <label class="form-label">To Date</label>
+                        <input type="date" name="toDate" class="form-control" value="@ViewData["ToDate"]" />
+                    </div>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-search"></i> Search
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead class="table-light">
+                <tr>
+                    <th>Event</th>
+                    <th>Venue</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Model)
+                {
+                    <tr>
+                        <td data-label="Event">
+                            <div class="d-flex flex-column">
+                                <strong>@item.Event.EventName</strong>
+                                <small class="text-muted">@item.Event.EventType?.TypeName</small>
+                            </div>
+                        </td>
+                        <td data-label="Venue">
+                            <div class="d-flex flex-column">
+                                <span>@item.Venue.VenueName</span>
+                                <small class="text-muted">@item.Venue.Location</small>
+                            </div>
+                        </td>                        <td data-label="Date">
+                            <span>@item.BookingDate.ToString("MMMM dd, yyyy")</span>
+                        </td>
+                        <td data-label="Actions">
+                            <div class="btn-group">
+                                <a asp-action="Edit" asp-route-id="@item.BookingId" class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <a asp-action="Details" asp-route-id="@item.BookingId" class="btn btn-sm btn-outline-info">
+                                    <i class="bi bi-info-circle"></i>
+                                </a>
+                                <a asp-action="Delete" asp-route-id="@item.BookingId" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
     </div>
 </div>
+
+<style>
+    @@media screen and (max-width: 768px) {
+        .table-responsive table {
+            border: 0;
+        }
+
+        .table-responsive table thead {
+            display: none;
+        }
+
+        .table-responsive table tr {
+            display: block;
+            margin-bottom: 1rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .table-responsive table td {
+            display: block;
+            text-align: right;
+            padding: 0.75rem;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .table-responsive table td:last-child {
+            border-bottom: 0;
+        }
+
+        .table-responsive table td::before {
+            content: attr(data-label);
+            float: left;
+            font-weight: bold;
+        }
+
+        .table-responsive .btn-group {
+            display: flex;
+            justify-content: flex-end;
+        }
+    }
+</style>

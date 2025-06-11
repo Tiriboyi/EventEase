@@ -3,29 +3,91 @@ using EventEase.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Azure.Storage.Blobs;
+using Azure.Storage.Sas;
 
 namespace EventEase.Controllers
-{
-    public class BookingController : Controller
+{    public class BookingController : Controller
     {
         private readonly EventEaseContext _context;
+        private readonly BlobContainerClient _blobContainerClient;
 
-        public BookingController(EventEaseContext context)
+        public BookingController(EventEaseContext context, BlobContainerClient blobContainerClient)
         {
             _context = context;
+            _blobContainerClient = blobContainerClient;
         }
 
-        // GET: Booking
-        public async Task<IActionResult> Index()
+        private async Task<string?> GenerateImageSasUrlAsync(string? blobUrl)
         {
-            var bookings = await _context.Bookings
+            if (string.IsNullOrEmpty(blobUrl)) return "/images/istockphoto.jpg";
+
+            var uri = new Uri(blobUrl);
+            var blobClient = _blobContainerClient.GetBlobClient(Path.GetFileName(uri.LocalPath));
+
+            var sasBuilder = new BlobSasBuilder
+            {
+                BlobContainerName = _blobContainerClient.Name,
+                BlobName = blobClient.Name,
+                Resource = "b",
+                StartsOn = DateTimeOffset.UtcNow.AddHours(-1),
+                ExpiresOn = DateTimeOffset.UtcNow.AddHours(24)
+            };
+
+            sasBuilder.SetPermissions(BlobSasPermissions.Read);
+
+            return blobClient.GenerateSasUri(sasBuilder).ToString();
+        }// GET: Booking/GetVenueByEvent/5
+        [HttpGet]
+        public async Task<IActionResult> GetVenueByEvent(int eventId)
+        {
+            var @event = await _context.Events
+                .Include(e => e.Venue)
+                .FirstOrDefaultAsync(e => e.EventId == eventId);
+
+            if (@event == null) return NotFound(new { message = "Event not found" });
+            if (@event.Venue == null) return NotFound(new { message = "Venue not found for this event" });
+
+            return Json(new { venueId = @event.VenueId, venueName = @event.Venue.VenueName });
+        }        // GET: Booking
+        public async Task<IActionResult> Index(string searchTerm, DateTime? fromDate, DateTime? toDate)
+        {
+            ViewData["SearchTerm"] = searchTerm;
+            ViewData["FromDate"] = fromDate?.ToString("yyyy-MM-dd");
+            ViewData["ToDate"] = toDate?.ToString("yyyy-MM-dd");
+
+            var query = _context.Bookings
                 .Include(b => b.Event)
                 .Include(b => b.Venue)
-                .ToListAsync();
-            return View(bookings);
-        }
+                .AsQueryable();
 
-        // GET: Booking/Details/5
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                searchTerm = searchTerm.ToLower();
+                query = query.Where(b =>
+                    b.Event.EventName.ToLower().Contains(searchTerm) ||
+                    b.Venue.VenueName.ToLower().Contains(searchTerm) ||
+                    b.Venue.Location.ToLower().Contains(searchTerm) ||
+                    b.Event.EventType.TypeName.ToLower().Contains(searchTerm)
+                );
+            }
+
+            if (fromDate.HasValue)
+            {
+                query = query.Where(b => b.BookingDate.Date >= fromDate.Value.Date);
+            }
+
+            if (toDate.HasValue)
+            {
+                query = query.Where(b => b.BookingDate.Date <= toDate.Value.Date);
+            }
+
+            var bookings = await query
+                .OrderByDescending(b => b.BookingDate)
+                .ToListAsync();
+
+            return View(bookings);
+        }        // GET: Booking/Details/5
         public async Task<IActionResult> Details(int? id)
         {
             if (id == null) return NotFound();
@@ -35,6 +97,12 @@ namespace EventEase.Controllers
                 .Include(b => b.Venue)
                 .FirstOrDefaultAsync(m => m.BookingId == id);
             if (booking == null) return NotFound();
+
+            // Generate SAS URL for the event image
+            if (booking.Event != null)
+            {
+                booking.Event.ImageUrl = await GenerateImageSasUrlAsync(booking.Event.ImageUrl);
+            }
 
             return View(booking);
         }
